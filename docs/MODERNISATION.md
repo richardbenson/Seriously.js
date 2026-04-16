@@ -50,15 +50,18 @@ The goal is to make Seriously.js useful in a modern web app that processes video
 
 The library cannot currently be `import`ed in any modern JS project.
 
-- [ ] Add `package.json` with proper `main`, `module`, and `exports` fields
-- [ ] Convert `seriously.js` and all plugins to **ES modules** (`export default`, `import`)
-- [ ] Remove the hard `window` parameter (`}(window, function(window){`) — replace with environment detection so the core works in workers and Node.js test environments
-- [ ] Set up **Rollup** (or Vite lib mode) with:
-  - A single-file bundle (`seriously.all.js`) for quick embedding
-  - Individual per-effect entry points so bundlers can tree-shake
-  - ESM + CJS dual output
-- [ ] Publish to npm as `@seriously/core` and `@seriously/effects`
-- [ ] Update `README.md` with npm install instructions and ES module usage
+- [x] Add `package.json` with proper `main`, `module`, and `exports` fields
+- [x] Convert `seriously.js` and all 68 plugins to **ES modules** (`export default`, `import`) via `scripts/convert-to-esm.py`
+- [x] Remove the hard `window` parameter (`}(window, function(window){`) — replaced with `globalThis`/`self`/`global` environment detection
+- [x] Set up **Rollup** with:
+  - `dist/seriously.all.js` — UMD bundle with all 59 effects (395 KB)
+  - `dist/seriously.all.cjs.js` — CJS bundle with all effects (381 KB)
+  - `dist/seriously.cjs.js` — CJS core only (154 KB)
+  - `dist/esm/` — individual ESM files per effect for tree-shaking
+- [ ] Publish to npm
+- [x] Update `README.md` with npm install instructions and ES module usage
+
+> **Note:** `expression.js` contained an embedded minified jsep v0.2.9 library with a literal newline byte inside a string constant (valid in old parsers, rejected by Rollup). Fixed by escaping it as `\n` and adding a local `window` alias for the jsep self-registration call.
 
 **Effort:** ~2–3 days. No shader or API changes required.
 

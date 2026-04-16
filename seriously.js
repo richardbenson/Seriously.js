@@ -1,26 +1,10 @@
-/*jslint devel: true, bitwise: true, browser: true, white: true, nomen: true, plusplus: true, maxerr: 50, indent: 4, todo: true */
-/*global Float32Array, Uint8Array, Uint16Array, WebGLTexture, HTMLInputElement, HTMLSelectElement, HTMLElement, WebGLFramebuffer, HTMLCanvasElement, WebGLRenderingContext, define, module, exports */
-(function (root, factory) {
-	'use strict';
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		define('seriously', function () {
-			var Seriously = factory(root);
-			if (!root.Seriously) {
-				root.Seriously = Seriously;
-			}
-			return Seriously;
-		});
-	} else if (typeof exports === 'object') {
-		// Node. Does not work with strict CommonJS, but
-		// only CommonJS-like enviroments that support module.exports,
-		// like Node.
-		module.exports = factory(root);
-	} else if (typeof root.Seriously !== 'function') {
-		// Browser globals
-		root.Seriously = factory(root);
-	}
-}(window, function (window) {
+/* eslint-disable no-var */
+/* global globalThis, self */
+// Resolve the global object for browser, worker, and Node.js environments.
+var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-line no-shadow
+             typeof self !== 'undefined' ? self :
+             typeof global !== 'undefined' ? global : {};
+
 	'use strict';
 
 	var document = window.document,
@@ -6869,5 +6853,5 @@
 		'}\n' +
 		'#endif\n';
 
-	return Seriously;
-}));
+
+export default Seriously;

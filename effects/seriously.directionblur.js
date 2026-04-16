@@ -1,29 +1,5 @@
-/* global define, require */
-/*
-Directional Motion Blur
+import Seriously from '../seriously.js';
 
-Adapted from v002 by Anton Marini and Tom Butterworth
-* Copyright vade - Anton Marini
-* Creative Commons, Attribution - Non Commercial - Share Alike 3.0
-
-http://v002.info/plugins/v002-blurs/
-*/
-(function (root, factory) {
-	'use strict';
-
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		define(['seriously'], factory);
-	} else if (typeof exports === 'object') {
-		// Node/CommonJS
-		factory(require('seriously'));
-	} else {
-		if (!root.Seriously) {
-			root.Seriously = { plugin: function (name, opt) { this[name] = opt; } };
-		}
-		factory(root.Seriously);
-	}
-}(window, function (Seriously) {
 	'use strict';
 
 	var passes = [0.2, 0.3, 0.5, 0.8],
@@ -253,4 +229,3 @@ http://v002.info/plugins/v002-blurs/
 		},
 		title: 'Directional Motion Blur'
 	});
-}));

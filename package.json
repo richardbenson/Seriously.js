@@ -1,0 +1,61 @@
+{
+  "name": "seriously",
+  "version": "0.2.0",
+  "description": "Real-time node-based video compositor for the web, GPU-accelerated via WebGL.",
+  "type": "module",
+  "main": "./dist/seriously.cjs.js",
+  "module": "./seriously.js",
+  "exports": {
+    ".": {
+      "import": "./seriously.js",
+      "require": "./dist/seriously.cjs.js"
+    },
+    "./all": {
+      "import": "./src/index.js",
+      "require": "./dist/seriously.all.cjs.js"
+    },
+    "./effects/*": "./effects/seriously.*.js",
+    "./sources/*": "./sources/seriously.*.js",
+    "./transforms/*": "./transforms/seriously.*.js",
+    "./targets/*": "./targets/seriously.*.js"
+  },
+  "files": [
+    "seriously.js",
+    "effects/",
+    "sources/",
+    "transforms/",
+    "targets/",
+    "src/",
+    "dist/"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/richardbenson/Seriously.js.git"
+  },
+  "keywords": [
+    "webgl",
+    "video",
+    "effects",
+    "compositor",
+    "glsl",
+    "node-graph",
+    "real-time"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.0.0",
+    "rollup": "^4.0.0"
+  },
+  "peerDependencies": {
+    "three": ">=0.100.0"
+  },
+  "peerDependenciesMeta": {
+    "three": {
+      "optional": true
+    }
+  }
+}

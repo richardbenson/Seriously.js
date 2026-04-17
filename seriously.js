@@ -530,9 +530,11 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 		var context;
 		try {
 			if (window.WebGLDebugUtils && options && options.debugContext) {
-				context = window.WebGLDebugUtils.makeDebugContext(canvas.getContext('webgl', options));
+				context = window.WebGLDebugUtils.makeDebugContext(
+					canvas.getContext('webgl2', options) || canvas.getContext('webgl', options)
+				);
 			} else {
-				context = canvas.getContext('webgl', options);
+				context = canvas.getContext('webgl2', options) || canvas.getContext('webgl', options);
 			}
 		} catch (expError) {
 			Seriously.logger.warn('Unable to create WebGL Context', expError);
@@ -766,16 +768,49 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 	function FrameBuffer(gl, width, height, options) {
 		var frameBuffer,
 			renderBuffer,
-			tex,
 			status,
-			useFloat = options === true ? options : (options && options.useFloat);
+			isGL2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext,
+			requestedPrecision = (options && typeof options === 'object') ? (options.precision || 'uint8') : 'uint8',
+			internalFormat = gl.RGBA,
+			type = gl.UNSIGNED_BYTE,
+			actualPrecision = 'uint8';
 
-		useFloat = false;//useFloat && !!gl.getExtension('OES_texture_float'); //useFloat is not ready!
-		if (useFloat) {
-			this.type = gl.FLOAT;
-		} else {
-			this.type = gl.UNSIGNED_BYTE;
+		if (requestedPrecision === 'float32' || requestedPrecision === 'float16') {
+			if (isGL2) {
+				if (gl.getExtension('EXT_color_buffer_float')) {
+					if (requestedPrecision === 'float32') {
+						internalFormat = gl.RGBA32F;
+						type = gl.FLOAT;
+						actualPrecision = 'float32';
+					} else {
+						internalFormat = gl.RGBA16F;
+						type = gl.HALF_FLOAT;
+						actualPrecision = 'float16';
+					}
+				}
+			} else {
+				if (requestedPrecision === 'float32') {
+					var floatExt = gl.getExtension('OES_texture_float');
+					var floatBufExt = gl.getExtension('WEBGL_color_buffer_float');
+					if (floatExt && floatBufExt) {
+						type = gl.FLOAT;
+						actualPrecision = 'float32';
+					}
+				} else {
+					var halfExt = gl.getExtension('OES_texture_half_float');
+					var halfBufExt = gl.getExtension('EXT_color_buffer_half_float');
+					if (halfExt && halfBufExt) {
+						type = halfExt.HALF_FLOAT_OES;
+						actualPrecision = 'float16';
+					}
+				}
+			}
 		}
+
+		this.type = type;
+		this.precision = actualPrecision;
+		this.internalFormat = internalFormat;
+		this.isGL2 = isGL2;
 
 		frameBuffer = gl.createFramebuffer();
 		gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
@@ -796,18 +831,21 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 		}
 
 		try {
-			if (this.type === gl.FLOAT) {
-				tex = new Float32Array(width * height * 4);
-				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, tex);
+			if (isGL2 && actualPrecision !== 'uint8') {
+				gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, width, height, 0, gl.RGBA, type, null);
+			} else if (actualPrecision !== 'uint8') {
+				// WebGL 1 float path — internalFormat stays gl.RGBA
+				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, type, null);
 			} else {
 				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-				this.type = gl.UNSIGNED_BYTE;
 			}
 		} catch (e) {
-			// Null rejected
+			// Null rejected — fall back to uint8 with explicit data
 			this.type = gl.UNSIGNED_BYTE;
-			tex = new Uint8Array(width * height * 4);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+			this.precision = 'uint8';
+			this.internalFormat = gl.RGBA;
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+				new Uint8Array(width * height * 4));
 		}
 
 		renderBuffer = gl.createRenderbuffer();
@@ -869,8 +907,13 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.frameBuffer);
 		gl.bindRenderbuffer(gl.RENDERBUFFER, this.renderBuffer);
 
-		//todo: handle float
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+		if (this.isGL2 && this.precision !== 'uint8') {
+			gl.texImage2D(gl.TEXTURE_2D, 0, this.internalFormat, width, height, 0, gl.RGBA, this.type, null);
+		} else if (this.precision !== 'uint8') {
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, this.type, null);
+		} else {
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+		}
 		gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
 		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture, 0);
 
@@ -931,7 +974,8 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 		}
 
 		function makeShaderSetter(info, loc) {
-			if (info.type === gl.SAMPLER_2D) {
+			if (info.type === gl.SAMPLER_2D ||
+				(gl.SAMPLER_3D !== undefined && info.type === gl.SAMPLER_3D)) {
 				return function (value) {
 					info.glTexture = gl['TEXTURE' + value];
 					gl.uniform1i(loc, value);
@@ -1128,6 +1172,8 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 			defaultInputs = {},
 			glCanvas,
 			gl,
+			isWebGL2 = false,
+			precision = 'uint8',
 			primaryTarget,
 			rectangleModel,
 			commonShaders = {},
@@ -1245,6 +1291,7 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 
 			gl = context;
 			glCanvas = context.canvas;
+			isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && context instanceof WebGL2RenderingContext;
 
 			restoreAll();
 		}
@@ -1676,9 +1723,9 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 			}
 		};
 
-		Node.prototype.initFrameBuffer = function (useFloat) {
+		Node.prototype.initFrameBuffer = function () {
 			if (gl) {
-				this.frameBuffer = new FrameBuffer(gl, this.width, this.height, useFloat);
+				this.frameBuffer = new FrameBuffer(gl, this.width, this.height, { precision: precision });
 			}
 		};
 
@@ -2264,10 +2311,10 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 
 				if (typeof this.effect.initialize === 'function') {
 					this.effect.initialize.call(this, function () {
-						that.initFrameBuffer(true);
+						that.initFrameBuffer();
 					}, gl);
 				} else {
-					this.initFrameBuffer(true);
+					this.initFrameBuffer();
 				}
 
 				if (this.frameBuffer) {
@@ -2413,10 +2460,17 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 				me = this;
 
 			function addShaderName(shaderSrc) {
+				var versionMatch;
 				if (shaderNameRegex.test(shaderSrc)) {
 					return shaderSrc;
 				}
-
+				// #version must be the first directive — insert the define after it
+				versionMatch = shaderSrc.match(/^(\s*#version\s+[^\n]*\n?)/);
+				if (versionMatch) {
+					return versionMatch[1] +
+						'#define SHADER_NAME seriously.' + me.hook + '\n' +
+						shaderSrc.slice(versionMatch[1].length);
+				}
 				return '#define SHADER_NAME seriously.' + me.hook + '\n' +
 					shaderSrc;
 			}
@@ -4897,6 +4951,10 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 			options = options || {};
 		}
 
+		if (options.precision === 'float16' || options.precision === 'float32') {
+			precision = options.precision;
+		}
+
 		if (options.canvas) {
 		}
 
@@ -5187,12 +5245,14 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 			canvas = document.createElement('canvas');
 			if (!canvas || !canvas.getContext) {
 				incompatibility = 'canvas';
-			} else if (!window.WebGLRenderingContext) {
+			} else if (!window.WebGLRenderingContext && !window.WebGL2RenderingContext) {
 				incompatibility = 'webgl';
 			} else {
 				gl = getTestContext();
 				if (!gl) {
 					incompatibility = 'context';
+				} else {
+					incompatibility = false;
 				}
 			}
 		}
@@ -5218,6 +5278,45 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 		}
 
 		return false;
+	};
+
+	Seriously.capabilities = function () {
+		var testGL = getTestContext(),
+			isGL2, ext,
+			caps = {
+				webgl2: false,
+				floatTextures: false,
+				halfFloatTextures: false,
+				floatRenderTargets: false,
+				halfFloatRenderTargets: false,
+				multipleRenderTargets: false
+			};
+
+		if (!testGL) {
+			return caps;
+		}
+
+		isGL2 = typeof WebGL2RenderingContext !== 'undefined' && testGL instanceof WebGL2RenderingContext;
+		caps.webgl2 = isGL2;
+
+		if (isGL2) {
+			caps.floatTextures = true;
+			caps.halfFloatTextures = true;
+			ext = testGL.getExtension('EXT_color_buffer_float');
+			caps.floatRenderTargets = !!ext;
+			caps.halfFloatRenderTargets = !!ext;
+			caps.multipleRenderTargets = true;
+		} else {
+			caps.floatTextures = !!testGL.getExtension('OES_texture_float');
+			caps.halfFloatTextures = !!testGL.getExtension('OES_texture_half_float');
+			caps.floatRenderTargets = !!(testGL.getExtension('OES_texture_float') &&
+				testGL.getExtension('WEBGL_color_buffer_float'));
+			caps.halfFloatRenderTargets = !!(testGL.getExtension('OES_texture_half_float') &&
+				testGL.getExtension('EXT_color_buffer_half_float'));
+			caps.multipleRenderTargets = !!testGL.getExtension('WEBGL_draw_buffers');
+		}
+
+		return caps;
 	};
 
 	Seriously.plugin = function (hook, definition, meta) {

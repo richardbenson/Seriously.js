@@ -90,12 +90,12 @@ The current `video` source polls `requestAnimationFrame` and re-uploads the text
 
 WebGL 2.0 has been universally supported since 2018. The upgrade is largely additive.
 
-- [ ] Request a `webgl2` context with fallback to `webgl`. Detect in `Seriously.incompatible()`.
-- [ ] Replace the `colorcube` 2D-texture LUT encoding with a native `sampler3D` (`TEXTURE_3D`) — eliminates the slice-encoding workaround and supports arbitrary LUT sizes cleanly
-- [ ] Add a **float texture pipeline**: use `RGBA16F` / `RGBA32F` framebuffers when `EXT_color_buffer_float` is available. Add a `precision` option to the Seriously constructor (`'uint8'` | `'float16'` | `'float32'`).
-- [ ] Expose `multipleRenderTargets` capability for effects that need it (e.g. a future denoising pass)
-- [ ] Complete the `transform-fix` branch work: the architectural change that moves transform application into the effect's texture lookup (faster, avoids an extra framebuffer per transform node)
-- [ ] Complete/rebase the `multi-input` branch work: allow effects to declare an array-typed input with variable length
+- [x] Request a `webgl2` context with fallback to `webgl`. `getWebGlContext` now tries `webgl2` first. `attachContext` sets `isWebGL2` flag. Fix `Seriously.incompatible()` (typo `WebGLRenderContext` → checks both `WebGLRenderingContext` and `WebGL2RenderingContext`).
+- [x] Replace the `colorcube` 2D-texture LUT encoding with a native `sampler3D` (`TEXTURE_3D`) on WebGL 2 — GLSL ES 3.0 shader with `sampler3D`; on WebGL 2 the plugin reads the slice-encoded 2D texture once and uploads a proper `TEXTURE_3D`. Falls back to the existing slice-interpolation shader on WebGL 1.
+- [x] Add a **float texture pipeline**: use `RGBA16F` / `RGBA32F` framebuffers when `EXT_color_buffer_float` is available (WebGL 2) or `OES_texture_float` + `WEBGL_color_buffer_float` (WebGL 1). Add a `precision` option to the Seriously constructor (`'uint8'` | `'float16'` | `'float32'`). `ShaderProgram` `makeShaderSetter` now handles `SAMPLER_3D`. `addShaderName` inserts `#define` after `#version` when present.
+- [x] Expose `Seriously.capabilities()` — returns `{ webgl2, floatTextures, halfFloatTextures, floatRenderTargets, halfFloatRenderTargets, multipleRenderTargets }`.
+- [ ] Complete the `transform-fix` branch work: the architectural change that moves transform application into the effect's texture lookup (faster, avoids an extra framebuffer per transform node) — deferred to Phase 3.5 / Phase 4 prep
+- [ ] Complete/rebase the `multi-input` branch work: allow effects to declare an array-typed input with variable length — deferred
 
 **Effort:** ~1 week.
 

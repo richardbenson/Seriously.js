@@ -105,7 +105,7 @@ WebGL 2.0 has been universally supported since 2018. The upgrade is largely addi
 
 - [x] **TypeScript types**: `seriously.d.ts` — covers the Seriously constructor and instance, all 59 effect hooks with typed inputs, Source / Target / Transform node interfaces, and the static `capabilities()` / `incompatible()` / plugin-registration APIs. Wired into `package.json` via `"types"` and `"exports"["."].types`.
 - [x] **`feature/defFunctions` reimplementation**: already present — `Seriously.plugin(hook, definitionFn, meta)` stores `effect.definition`; `EffectNode` constructor calls `this.effectRef.definition.call(this, options)` when it is a function, allowing deferred input declaration with `this` bound to the node.
-- [ ] **`monitor` feature reimplementation**: expose `effect.watch(property, target)` using a clean observable/signal-compatible API (or a simple getter/setter with dirty-marking) rather than the polling approach in the original branch.
+- [x] **`monitor` feature reimplementation**: `effect.watch(inputName, fn)` and `effect.watch(inputName, obj, property)` register a getter evaluated every animation frame via `seriously.on('beforeFrame', ...)`. `effect.unwatch(inputName?)` removes individual or all watchers. Watchers are automatically removed on `effect.destroy()`. `setInput`'s existing same-value guard (line 2629) prevents dirty marks for unchanged primitive inputs.
 - [x] Replace `Seriously.animate()` / `go(pre, post)` callback pattern with `seriously.on('beforeFrame', cb)` / `seriously.on('afterFrame', cb)` and matching `seriously.off()`. Both events implicitly start the render loop. The existing `go(pre, post)` API is preserved for backwards compatibility.
 - [ ] Add `OffscreenCanvas` + `Worker` support: allow the full pipeline to run in a dedicated worker thread when `OffscreenCanvas.transferControlToOffscreen()` is available.
 - [ ] Replace `var` + prototype chains with ES2020 classes throughout `seriously.js`.
@@ -141,6 +141,6 @@ Phase 4 (API modernisation) introduces minor breaking changes:
 
 The existing QUnit test suite (`test/seriously.unit.js`) runs in-browser and tests core functionality without a headless WebGL implementation. Steps needed:
 
-- [ ] Port tests to **Vitest** with `@vitest/browser` or a headless WebGL provider (e.g. `gl` npm package for Node.js)
-- [ ] Add CI via GitHub Actions running tests on every push
+- [x] Port tests to **Vitest** (`vitest.config.js`, `test/seriously.test.js` — 76 tests covering: core API, plugin registration, effect creation and input validation (number/color/vector/boolean/enum), node graph connectivity, event system, `effect.watch/unwatch`, alias, defaults, destroy lifecycle, and node type checks). Environment: `happy-dom` (no GPU required).
+- [x] Add CI via GitHub Actions (`.github/workflows/ci.yml`) — runs tests on Node 20 & 22, then builds Rollup bundles and uploads `dist/` as an artifact, on every push and PR.
 - [ ] Add visual regression tests using pixel comparison for key effects

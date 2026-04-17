@@ -116,6 +116,19 @@ export interface Effect extends SeriouslyNode {
   inputs(name: string): InputDescriptor | null;
   alias(inputName: string, aliasName: string): this;
   matte(polygons: [number, number][][] | [number, number][]): void;
+
+  /**
+   * Drive an input from a getter function, evaluated every animation frame
+   * before rendering. Replaces any previous watcher for the same input.
+   * Pass `null` as the second argument to remove an existing watcher.
+   */
+  watch(inputName: string, fn: () => unknown): this;
+  watch(inputName: string, obj: object, property: string): this;
+  watch(inputName: string, fn: null): this;
+
+  /** Remove the watcher for a specific input, or all watchers if omitted. */
+  unwatch(inputName?: string): this;
+
   [inputName: string]: unknown;
 }
 

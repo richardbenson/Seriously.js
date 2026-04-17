@@ -2146,10 +2146,84 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 				me.matte(polygons);
 			};
 
+			/**
+			 * Drive an effect input from a getter function, updated every animation
+			 * frame before rendering.
+			 *
+			 * @param {string} inputName  - the effect input to drive
+			 * @param {Function|object} fnOrObj - getter function () => value, or an
+			 *   object whose property to watch (second arg = property name string)
+			 * @param {string} [property] - property name when fnOrObj is an object
+			 *
+			 * Pass null/undefined as the second argument to remove the watcher for
+			 * that input without calling unwatch().
+			 */
+			this.watch = function (inputName, fnOrObj, property) {
+				var watchFn, boundCallback;
+
+				if (!me.effect.inputs || !me.effect.inputs[inputName]) {
+					throw new Error('Unknown input: ' + inputName);
+				}
+
+				if (!me.watchers) {
+					me.watchers = {};
+				}
+
+				// Remove any previous watcher for this input
+				if (me.watchers[inputName]) {
+					me.seriously.off('beforeFrame', me.watchers[inputName]);
+					delete me.watchers[inputName];
+				}
+
+				if (fnOrObj === null || fnOrObj === undefined) {
+					return this;
+				}
+
+				if (typeof fnOrObj === 'function') {
+					watchFn = fnOrObj;
+				} else if (fnOrObj && property !== undefined) {
+					watchFn = (function (obj, prop) {
+						return function () { return obj[prop]; };
+					}(fnOrObj, property));
+				} else {
+					throw new Error('watch() requires a getter function or (object, propertyName)');
+				}
+
+				boundCallback = (function (name, fn) {
+					return function () { me.setInput(name, fn()); };
+				}(inputName, watchFn));
+
+				me.watchers[inputName] = boundCallback;
+				me.seriously.on('beforeFrame', boundCallback);
+				return this;
+			};
+
+			this.unwatch = function (inputName) {
+				var key;
+				if (!me.watchers) {
+					return this;
+				}
+				if (inputName !== undefined) {
+					if (me.watchers[inputName]) {
+						me.seriously.off('beforeFrame', me.watchers[inputName]);
+						delete me.watchers[inputName];
+					}
+				} else {
+					for (key in me.watchers) {
+						if (me.watchers.hasOwnProperty(key)) {
+							me.seriously.off('beforeFrame', me.watchers[key]);
+						}
+					}
+					me.watchers = {};
+				}
+				return this;
+			};
+
 			this.destroy = function () {
 				var i,
 					descriptor;
 
+				this.unwatch();
 				me.destroy();
 
 				for (i in this) {

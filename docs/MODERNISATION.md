@@ -71,14 +71,16 @@ The library cannot currently be `import`ed in any modern JS project.
 
 The current `video` source polls `requestAnimationFrame` and re-uploads the texture every frame regardless of whether the video decoder has produced a new frame.
 
-- [ ] Add `requestVideoFrameCallback` support to the `video` source node so texture upload is synchronised with the video decoder (eliminates redundant GPU uploads and frame tearing on high frame rate sources)
-- [ ] Add a **`VideoFrame` source node** (`sources/seriously.videoframe.js`) accepting `VideoFrame` objects from:
+- [x] Add `requestVideoFrameCallback` support to the `video` source node so texture upload is synchronised with the video decoder (eliminates redundant GPU uploads and frame tearing on high frame rate sources)
+- [x] Add a **`VideoFrame` source node** (`sources/seriously.videoframe.js`) accepting `VideoFrame` objects from:
   - `HTMLVideoElement.requestVideoFrameCallback`
   - `VideoDecoder` (WebCodecs)
   - `MediaStreamTrackProcessor`
   - `ImageCapture`
-- [ ] Add a **`VideoFrame` target** that outputs `VideoFrame` objects for use with `VideoEncoder` or `MediaStreamTrackGenerator` — enabling a fully GPU-accelerated encode pipeline
-- [ ] Update `sources/seriously.camera.js` to use the modern `getUserMedia` API (remove vendor-prefixed `webkitGetUserMedia`/`mozGetUserMedia` fallbacks) and use `MediaStreamTrackProcessor` when available
+- [x] Add a **`VideoFrame` target** (`targets/seriously.videoframe.js`) that outputs `VideoFrame` objects for use with `VideoEncoder` or `MediaStreamTrackGenerator` — enabling a fully GPU-accelerated encode pipeline
+- [x] Update `sources/seriously.camera.js` to use the modern `getUserMedia` API (remove vendor-prefixed `webkitGetUserMedia`/`mozGetUserMedia` fallbacks); add `requestVideoFrameCallback` support
+
+> **Note:** The VideoFrame target must be the primary (first) WebGL target in a Seriously instance, since it creates the rendering canvas. For pipelines requiring both a visible canvas and encoded output, use two Seriously instances or listen to the `'render'` event on a canvas target and call `new VideoFrame(canvas, …)` in the handler.
 
 **Effort:** ~3–4 days.
 

@@ -76,6 +76,10 @@ import '../sources/seriously.array.js';
 import '../sources/seriously.camera.js';
 import '../sources/seriously.depth.js';
 import '../sources/seriously.imagedata.js';
+import '../sources/seriously.videoframe.js';
+
+// Targets
+import '../targets/seriously.videoframe.js';
 
 // Transforms
 import '../transforms/seriously.camerashake.js';

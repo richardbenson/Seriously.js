@@ -3188,6 +3188,12 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 			this.isReady = function () {
 				return me.ready;
 			};
+
+			if (typeof me._push === 'function') {
+				this.push = function (frame) {
+					me._push(frame);
+				};
+			}
 		};
 
 		/*
@@ -5811,8 +5817,18 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 			destroyed = false,
 			deferTexture = false,
 
+			rvfcId = null,
+			framePending = false,
+			useRVFC = false,
+
 			isSeeking = false,
 			lastRenderTime = 0;
+
+		function onVideoFrame() {
+			framePending = true;
+			rvfcId = null;
+			me.setDirty();
+		}
 
 		function initializeVideo() {
 			video.removeEventListener('loadedmetadata', initializeVideo, true);
@@ -5859,6 +5875,11 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 			video.addEventListener('seeking', seeking, false);
 			video.addEventListener('seeked', seeked, false);
 
+			useRVFC = typeof video.requestVideoFrameCallback === 'function';
+			if (useRVFC) {
+				rvfcId = video.requestVideoFrameCallback(onVideoFrame);
+			}
+
 			return {
 				deferTexture: deferTexture,
 				source: video,
@@ -5867,6 +5888,10 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 						error;
 
 					lastRenderTime = video.currentTime;
+					framePending = false;
+					if (useRVFC && !destroyed) {
+						rvfcId = video.requestVideoFrameCallback(onVideoFrame);
+					}
 
 					if (!video.videoHeight || !video.videoWidth) {
 						return false;
@@ -5912,6 +5937,9 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 					return false;
 				},
 				checkDirty: function () {
+					if (useRVFC) {
+						return !isSeeking && framePending;
+					}
 					return !isSeeking && video.currentTime !== lastRenderTime;
 				},
 				compare: function (source) {
@@ -5919,6 +5947,10 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 				},
 				destroy: function () {
 					destroyed = true;
+					if (useRVFC && rvfcId !== null) {
+						video.cancelVideoFrameCallback(rvfcId);
+						rvfcId = null;
+					}
 					video.removeEventListener('seeking', seeking, false);
 					video.removeEventListener('seeked', seeked, false);
 					video.removeEventListener('loadedmetadata', initializeVideo, true);

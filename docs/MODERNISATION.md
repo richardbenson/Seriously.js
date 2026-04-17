@@ -119,7 +119,7 @@ WebGL 2.0 has been universally supported since 2018. The upgrade is largely addi
 These are useful but lower priority than the above.
 
 - [ ] **Load/Save** (`loadsave` branch): serialise and deserialise the node graph as JSON. Useful for saving effect presets. The branch has partial implementation and tests.
-- [ ] **WebGPU compute path**: for compute-heavy effects (`opticalflow`, `blur`, future denoise/upscale), a WebGPU compute shader path would be dramatically faster. WebGPU is now available in Chrome/Edge/Safari/Firefox. This would be a parallel implementation, not a replacement.
+- [x] **WebGPU compute path** — architecture designed in `docs/WEBGPU.md`: pure-WebGPU backend opted in via `{ backend: 'webgpu' }`, lazy `GPUDevice` init, `GPUFrameBuffer` abstraction, render-pipeline for pass-through effects, compute-pipeline for `blur` and `opticalflow`, WGSL compute shader sketch for blur. Implementation tracked in phases 5.1–5.5 in that doc.
 - [ ] **HDR / wide-gamut output**: once the float pipeline is in place (Phase 3), add a `rec2020` / `p3` colour space option and an HDR canvas target using `colorSpace: 'display-p3'` or the `HTMLCanvasElement` HDR extensions.
 - [ ] **Cyclic graphs** (`loop` branch): allow feedback loops in the node graph (the accumulator already simulates this manually; a first-class loop node would be cleaner).
 

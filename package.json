@@ -5,10 +5,12 @@
   "type": "module",
   "main": "./dist/seriously.cjs.js",
   "module": "./seriously.js",
+  "types": "./seriously.d.ts",
   "exports": {
     ".": {
       "import": "./seriously.js",
-      "require": "./dist/seriously.cjs.js"
+      "require": "./dist/seriously.cjs.js",
+      "types": "./seriously.d.ts"
     },
     "./all": {
       "import": "./src/index.js",
@@ -21,6 +23,7 @@
   },
   "files": [
     "seriously.js",
+    "seriously.d.ts",
     "effects/",
     "sources/",
     "transforms/",

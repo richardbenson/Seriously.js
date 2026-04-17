@@ -5103,6 +5103,59 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 			rafId = 0;
 		};
 
+		/**
+		 * Subscribe to instance-level events.
+		 *
+		 * Supported events:
+		 *   'beforeFrame' — fired each animation frame before sources are checked
+		 *                   and targets are rendered. Callback receives the rAF
+		 *                   timestamp (DOMHighResTimeStamp) as its first argument.
+		 *   'afterFrame'  — fired each animation frame after all targets have been
+		 *                   rendered. Registering either frame event implicitly
+		 *                   starts the render loop.
+		 */
+		this.on = function (eventName, callback) {
+			var i;
+			if (typeof callback !== 'function') {
+				return this;
+			}
+			if (eventName === 'beforeFrame') {
+				if (preCallbacks.indexOf(callback) < 0) {
+					preCallbacks.push(callback);
+				}
+				if (!rafId) {
+					renderDaemon();
+				}
+			} else if (eventName === 'afterFrame') {
+				if (postCallbacks.indexOf(callback) < 0) {
+					postCallbacks.push(callback);
+				}
+				if (!rafId) {
+					renderDaemon();
+				}
+			}
+			return this;
+		};
+
+		this.off = function (eventName, callback) {
+			var i;
+			if (typeof callback !== 'function') {
+				return this;
+			}
+			if (eventName === 'beforeFrame') {
+				i = preCallbacks.indexOf(callback);
+				if (i >= 0) {
+					preCallbacks.splice(i, 1);
+				}
+			} else if (eventName === 'afterFrame') {
+				i = postCallbacks.indexOf(callback);
+				if (i >= 0) {
+					postCallbacks.splice(i, 1);
+				}
+			}
+			return this;
+		};
+
 		this.render = function () {
 			var i;
 			for (i = 0; i < targets.length; i++) {

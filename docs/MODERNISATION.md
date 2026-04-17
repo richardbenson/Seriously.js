@@ -103,10 +103,10 @@ WebGL 2.0 has been universally supported since 2018. The upgrade is largely addi
 
 ### Phase 4 — API Modernisation *(developer experience)*
 
-- [ ] **TypeScript types**: add a `seriously.d.ts` declaration file covering the core API, all effect hooks, and their input types. Use branded types for hook names.
-- [ ] **`feature/defFunctions` reimplementation**: allow a plugin to export a factory function instead of a plain object, with `this` bound to the effect node and inputs declarable inside the function body. This enables dynamic input counts (e.g. `layers`) to be declared cleanly.
+- [x] **TypeScript types**: `seriously.d.ts` — covers the Seriously constructor and instance, all 59 effect hooks with typed inputs, Source / Target / Transform node interfaces, and the static `capabilities()` / `incompatible()` / plugin-registration APIs. Wired into `package.json` via `"types"` and `"exports"["."].types`.
+- [x] **`feature/defFunctions` reimplementation**: already present — `Seriously.plugin(hook, definitionFn, meta)` stores `effect.definition`; `EffectNode` constructor calls `this.effectRef.definition.call(this, options)` when it is a function, allowing deferred input declaration with `this` bound to the node.
 - [ ] **`monitor` feature reimplementation**: expose `effect.watch(property, target)` using a clean observable/signal-compatible API (or a simple getter/setter with dirty-marking) rather than the polling approach in the original branch.
-- [ ] Replace `Seriously.animate()` with a documented `seriously.on('frame', callback)` event — the current animate utility is undocumented and fragile.
+- [x] Replace `Seriously.animate()` / `go(pre, post)` callback pattern with `seriously.on('beforeFrame', cb)` / `seriously.on('afterFrame', cb)` and matching `seriously.off()`. Both events implicitly start the render loop. The existing `go(pre, post)` API is preserved for backwards compatibility.
 - [ ] Add `OffscreenCanvas` + `Worker` support: allow the full pipeline to run in a dedicated worker thread when `OffscreenCanvas.transferControlToOffscreen()` is available.
 - [ ] Replace `var` + prototype chains with ES2020 classes throughout `seriously.js`.
 

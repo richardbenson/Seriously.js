@@ -5,21 +5,68 @@ Inspired by professional software such as After Effects and Nuke,
 Seriously.js renders high-quality video effects, but allows them to be
 dynamic and interactive.
 
+## Installation
+
+```bash
+npm install seriously
+```
+
+## Usage
+
+### ES modules (tree-shakable — import only what you need)
+
+```js
+import Seriously from 'seriously';
+import 'seriously/effects/blur';
+import 'seriously/effects/chroma';
+
+const seriously = new Seriously();
+const source = seriously.source(document.querySelector('video'));
+const chroma  = seriously.effect('chroma');
+const blur    = seriously.effect('blur');
+
+chroma.source = source;
+chroma.screen = [0.2, 0.8, 0.1, 1];
+blur.source   = chroma;
+blur.amount   = 0.3;
+
+const target = seriously.target(document.querySelector('canvas'));
+target.source = blur;
+seriously.go();
+```
+
+### Full bundle (all 59 effects pre-loaded)
+
+```js
+import Seriously from 'seriously/all';
+// or in a <script> tag:
+// <script src="dist/seriously.all.js"></script>
+```
+
+### Build from source
+
+```bash
+npm install
+npm run build   # outputs to dist/
+```
+
 ## Getting Started
 
-Full documentation is in progress at the [wiki](https://github.com/brianchirls/Seriously.js/wiki). Start with the
-[Tutorial](https://github.com/brianchirls/Seriously.js/wiki/Tutorial) and
-[FAQ](https://github.com/brianchirls/Seriously.js/wiki/Frequently-Asked-Questions).
+See [`docs/EFFECTS.md`](docs/EFFECTS.md) for a full reference of all effects and their parameters.
+See [`docs/MODERNISATION.md`](docs/MODERNISATION.md) for the ongoing modernisation roadmap.
+
+Original documentation and tutorials are at the [wiki](https://github.com/brianchirls/Seriously.js/wiki).
 
 ## Features
 
-- Optimized rendering path and GPU accelerated up to 60 frames per second
-- Accept image input from varied sources: video, image, canvas, array, webcam, Three.js
-- Effect parameters accept multiple formats and can monitor HTML form inputs
-- Basic 2D transforms (translate, rotate, scale, skew) on effect nodes
-- Plugin architecture for adding new effects, sources and targets
-- Read pixel array from any node
-- Load with [AMD](http://requirejs.org/docs/whyamd.html#amd)/[RequireJS](http://www.requirejs.org/)
+- GPU-accelerated via WebGL, up to 60 fps
+- 59 built-in effects: colour grading, keying, blurs, distortion, creative and more
+- Node-graph architecture — chain effects together freely
+- Accepts `video`, `image`, `canvas`, `webcam`, `ImageData`, and Three.js sources
+- Effect parameters accept numbers, colours, booleans, enums, and HTML form inputs
+- Basic 2D and 3D transforms on any node
+- Plugin architecture for custom effects, sources and targets
+- Read pixel data from any node
 
 ### Included Effects
 - Accumulator

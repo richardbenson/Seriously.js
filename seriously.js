@@ -1,26 +1,10 @@
-/*jslint devel: true, bitwise: true, browser: true, white: true, nomen: true, plusplus: true, maxerr: 50, indent: 4, todo: true */
-/*global Float32Array, Uint8Array, Uint16Array, WebGLTexture, HTMLInputElement, HTMLSelectElement, HTMLElement, WebGLFramebuffer, HTMLCanvasElement, WebGLRenderingContext, define, module, exports */
-(function (root, factory) {
-	'use strict';
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		define('seriously', function () {
-			var Seriously = factory(root);
-			if (!root.Seriously) {
-				root.Seriously = Seriously;
-			}
-			return Seriously;
-		});
-	} else if (typeof exports === 'object') {
-		// Node. Does not work with strict CommonJS, but
-		// only CommonJS-like enviroments that support module.exports,
-		// like Node.
-		module.exports = factory(root);
-	} else if (typeof root.Seriously !== 'function') {
-		// Browser globals
-		root.Seriously = factory(root);
-	}
-}(window, function (window) {
+/* eslint-disable no-var */
+/* global globalThis, self */
+// Resolve the global object for browser, worker, and Node.js environments.
+var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-line no-shadow
+             typeof self !== 'undefined' ? self :
+             typeof global !== 'undefined' ? global : {};
+
 	'use strict';
 
 	var document = window.document,
@@ -286,8 +270,10 @@
 		'matte',
 		'off',
 		'on',
+		'purge',
 		'readPixels',
 		'render',
+		'restore',
 		'title',
 		'update'
 	],
@@ -301,6 +287,8 @@
 		'isReady',
 		'off',
 		'on',
+		'purge',
+		'restore',
 		'source',
 		'title',
 		'update'
@@ -320,8 +308,10 @@
 		'isSource',
 		'isTarget',
 		'isTransform',
+		'purge',
 		'removeAlias',
 		'render',
+		'restore',
 		'source',
 		'stop',
 		'target',
@@ -540,11 +530,14 @@
 		var context;
 		try {
 			if (window.WebGLDebugUtils && options && options.debugContext) {
-				context = window.WebGLDebugUtils.makeDebugContext(canvas.getContext('webgl', options));
+				context = window.WebGLDebugUtils.makeDebugContext(
+					canvas.getContext('webgl2', options) || canvas.getContext('webgl', options)
+				);
 			} else {
-				context = canvas.getContext('webgl', options);
+				context = canvas.getContext('webgl2', options) || canvas.getContext('webgl', options);
 			}
 		} catch (expError) {
+			Seriously.logger.warn('Unable to create WebGL Context', expError);
 		}
 
 		if (!context) {
@@ -775,16 +768,49 @@
 	function FrameBuffer(gl, width, height, options) {
 		var frameBuffer,
 			renderBuffer,
-			tex,
 			status,
-			useFloat = options === true ? options : (options && options.useFloat);
+			isGL2 = typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext,
+			requestedPrecision = (options && typeof options === 'object') ? (options.precision || 'uint8') : 'uint8',
+			internalFormat = gl.RGBA,
+			type = gl.UNSIGNED_BYTE,
+			actualPrecision = 'uint8';
 
-		useFloat = false;//useFloat && !!gl.getExtension('OES_texture_float'); //useFloat is not ready!
-		if (useFloat) {
-			this.type = gl.FLOAT;
-		} else {
-			this.type = gl.UNSIGNED_BYTE;
+		if (requestedPrecision === 'float32' || requestedPrecision === 'float16') {
+			if (isGL2) {
+				if (gl.getExtension('EXT_color_buffer_float')) {
+					if (requestedPrecision === 'float32') {
+						internalFormat = gl.RGBA32F;
+						type = gl.FLOAT;
+						actualPrecision = 'float32';
+					} else {
+						internalFormat = gl.RGBA16F;
+						type = gl.HALF_FLOAT;
+						actualPrecision = 'float16';
+					}
+				}
+			} else {
+				if (requestedPrecision === 'float32') {
+					var floatExt = gl.getExtension('OES_texture_float');
+					var floatBufExt = gl.getExtension('WEBGL_color_buffer_float');
+					if (floatExt && floatBufExt) {
+						type = gl.FLOAT;
+						actualPrecision = 'float32';
+					}
+				} else {
+					var halfExt = gl.getExtension('OES_texture_half_float');
+					var halfBufExt = gl.getExtension('EXT_color_buffer_half_float');
+					if (halfExt && halfBufExt) {
+						type = halfExt.HALF_FLOAT_OES;
+						actualPrecision = 'float16';
+					}
+				}
+			}
 		}
+
+		this.type = type;
+		this.precision = actualPrecision;
+		this.internalFormat = internalFormat;
+		this.isGL2 = isGL2;
 
 		frameBuffer = gl.createFramebuffer();
 		gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
@@ -805,18 +831,14 @@
 		}
 
 		try {
-			if (this.type === gl.FLOAT) {
-				tex = new Float32Array(width * height * 4);
-				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.FLOAT, tex);
-			} else {
-				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-				this.type = gl.UNSIGNED_BYTE;
-			}
+			gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, width, height, 0, gl.RGBA, type, null);
 		} catch (e) {
-			// Null rejected
+			// Null rejected — fall back to uint8 with explicit data
 			this.type = gl.UNSIGNED_BYTE;
-			tex = new Uint8Array(width * height * 4);
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, tex);
+			this.precision = 'uint8';
+			this.internalFormat = gl.RGBA;
+			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE,
+				new Uint8Array(width * height * 4));
 		}
 
 		renderBuffer = gl.createRenderbuffer();
@@ -878,8 +900,7 @@
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.frameBuffer);
 		gl.bindRenderbuffer(gl.RENDERBUFFER, this.renderBuffer);
 
-		//todo: handle float
-		gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+		gl.texImage2D(gl.TEXTURE_2D, 0, this.internalFormat, width, height, 0, gl.RGBA, this.type, null);
 		gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
 		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture, 0);
 
@@ -940,7 +961,8 @@
 		}
 
 		function makeShaderSetter(info, loc) {
-			if (info.type === gl.SAMPLER_2D) {
+			if (info.type === gl.SAMPLER_2D ||
+				(gl.SAMPLER_3D !== undefined && info.type === gl.SAMPLER_3D)) {
 				return function (value) {
 					info.glTexture = gl['TEXTURE' + value];
 					gl.uniform1i(loc, value);
@@ -1137,6 +1159,8 @@
 			defaultInputs = {},
 			glCanvas,
 			gl,
+			isWebGL2 = false,
+			precision = 'uint8',
 			primaryTarget,
 			rectangleModel,
 			commonShaders = {},
@@ -1202,9 +1226,44 @@
 			return makeGlModel(shape, gl);
 		}
 
-		function attachContext(context) {
+		function restoreBasics() {
+			if (!rectangleModel) {
+				rectangleModel = buildRectangleModel(gl);
+			}
+
+			if (!baseShader) {
+				baseShader = new ShaderProgram(
+					gl,
+					'#define SHADER_NAME seriously.base\n' + baseVertexShader, '#define SHADER_NAME seriously.base\n' + baseFragmentShader
+				);
+			}
+		}
+
+		function restoreAll() {
 			var i, node;
 
+			if (!gl) {
+				return;
+			}
+
+			restoreBasics();
+
+			for (i = 0; i < nodes.length; i++) {
+				node = nodes[i];
+				node.gl = gl;
+				node.restore();
+
+				// if (!node.model) {
+				// 	node.model = rectangleModel;
+				// 	node.shader = baseShader;
+				// }
+
+				//todo: initialize frame buffer for target if not main canvas
+			}
+		}
+
+
+		function attachContext(context) {
 			if (gl) {
 				return;
 			}
@@ -1219,36 +1278,9 @@
 
 			gl = context;
 			glCanvas = context.canvas;
+			isWebGL2 = typeof WebGL2RenderingContext !== 'undefined' && context instanceof WebGL2RenderingContext;
 
-			rectangleModel = buildRectangleModel(gl);
-
-			baseShader = new ShaderProgram(
-				gl,
-				'#define SHADER_NAME seriously.base\n' + baseVertexShader, '#define SHADER_NAME seriously.base\n' + baseFragmentShader
-			);
-
-			for (i = 0; i < effects.length; i++) {
-				node = effects[i];
-				node.gl = gl;
-				node.initialize();
-				node.buildShader();
-			}
-
-			for (i = 0; i < sources.length; i++) {
-				node = sources[i];
-				node.initialize();
-			}
-
-			for (i = 0; i < targets.length; i++) {
-				node = targets[i];
-
-				if (!node.model) {
-					node.model = rectangleModel;
-					node.shader = baseShader;
-				}
-
-				//todo: initialize frame buffer if not main canvas
-			}
+			restoreAll();
 		}
 
 		function restoreContext() {
@@ -1309,24 +1341,43 @@
 			}
 		}
 
+		function purgeAll() {
+			var i;
+
+			for (i = 0; i < nodes.length; i++) {
+				nodes[i].purge();
+			}
+
+			if (baseShader && baseShader.destroy) {
+				baseShader.destroy();
+			}
+
+			//clean up rectangleModel
+			if (rectangleModel) {
+				if (gl) {
+					gl.deleteBuffer(rectangleModel.vertex);
+					gl.deleteBuffer(rectangleModel.texCoord);
+					gl.deleteBuffer(rectangleModel.index);
+				}
+
+				delete rectangleModel.vertex;
+				delete rectangleModel.texCoord;
+				delete rectangleModel.index;
+			}
+
+			rectangleModel = null;
+			baseShader = null;
+		}
+
 		function destroyContext(event) {
 			// either webglcontextlost or primary target node has been destroyed
-			var i, node;
+			var i;
 
 			/*
 			todo: once multiple shared webgl resources are supported,
 			see if we can switch context to another existing one and
 			rebuild immediately
 			*/
-
-			if (event) {
-				Seriously.logger.warn('WebGL context lost');
-				/*
-				todo: if too many webglcontextlost events fired in too short a time,
-				don't preventDefault
-				*/
-				event.preventDefault();
-			}
 
 			//don't draw anymore until context is restored
 			if (rafId) {
@@ -1338,86 +1389,24 @@
 				glCanvas.removeEventListener('webglcontextlost', destroyContext, false);
 			}
 
-			for (i = 0; i < effects.length; i++) {
-				node = effects[i];
-				node.gl = null;
-				node.initialized = false;
-				node.baseShader = null;
-				node.model = null;
-				node.frameBuffer = null;
-				node.texture = null;
-				if (node.shader && node.shader.destroy) {
-					node.shader.destroy();
-					if (node.effect.commonShader) {
-						delete commonShaders[node.hook];
-					}
-				}
-				node.shaderDirty = true;
-				node.shader = null;
-				if (node.effect.lostContext) {
-					node.effect.lostContext.call(node);
-				}
-
+			if (event) {
+				Seriously.logger.warn('WebGL context lost');
 				/*
-				todo: do we need to set nodes to uready?
-				if so, make sure nodes never get set to ready unless gl exists
-				and make sure to set ready again when context is restored
+				todo: if too many webglcontextlost events fired in too short a time,
+				don't preventDefault
 				*/
+				event.preventDefault();
 
-				if (event) {
-					node.emit('webglcontextlost');
+				for (i = 0; i < nodes.length; i++) {
+					nodes[i].emit('webglcontextlost');
+					/*
+					todo: do we need to set nodes to uready?
+					if so, make sure nodes never get set to ready unless gl exists
+					and make sure to set ready again when context is restored
+					*/
 				}
 			}
 
-			for (i = 0; i < sources.length; i++) {
-				node = sources[i];
-				//node.setUnready();
-				node.texture = null;
-				node.initialized = false;
-				node.allowRefresh = false;
-				if (event) {
-					node.emit('webglcontextlost');
-				}
-			}
-
-			for (i = 0; i < transforms.length; i++) {
-				node = transforms[i];
-				node.frameBuffer = null;
-				node.texture = null;
-				if (event) {
-					node.emit('webglcontextlost');
-				}
-			}
-
-			for (i = 0; i < targets.length; i++) {
-				node = targets[i];
-				node.model = false;
-				node.frameBuffer = null;
-				//texture?
-				if (event) {
-					node.emit('webglcontextlost');
-				}
-			}
-
-			if (baseShader && baseShader.destroy) {
-				baseShader.destroy();
-			}
-
-			//clean up rectangleModel
-			if (gl) {
-				gl.deleteBuffer(rectangleModel.vertex);
-				gl.deleteBuffer(rectangleModel.texCoord);
-				gl.deleteBuffer(rectangleModel.index);
-			}
-
-			if (rectangleModel) {
-				delete rectangleModel.vertex;
-				delete rectangleModel.texCoord;
-				delete rectangleModel.index;
-			}
-
-			rectangleModel = null;
-			baseShader = null;
 			gl = null;
 			glCanvas = null;
 		}
@@ -1721,9 +1710,9 @@
 			}
 		};
 
-		Node.prototype.initFrameBuffer = function (useFloat) {
+		Node.prototype.initFrameBuffer = function () {
 			if (gl) {
-				this.frameBuffer = new FrameBuffer(gl, this.width, this.height, useFloat);
+				this.frameBuffer = new FrameBuffer(gl, this.width, this.height, { precision: precision });
 			}
 		};
 
@@ -1848,9 +1837,29 @@
 			}
 		};
 
+		Node.prototype.purge = function () {
+			//clear out frameBuffer
+			if (this.frameBuffer && this.frameBuffer.destroy) {
+				this.frameBuffer.destroy();
+				this.frameBuffer = null;
+			}
+
+			if (this.model && this.gl && this.model !== rectangleModel) {
+				this.gl.deleteBuffer(this.model.vertex);
+				this.gl.deleteBuffer(this.model.texCoord);
+				this.gl.deleteBuffer(this.model.index);
+				this.model = null;
+			}
+
+			this.dirty = true;
+			this.gl = null;
+		};
+
 		Node.prototype.destroy = function () {
 			var i,
 				key;
+
+			this.purge();
 
 			delete this.gl;
 			delete this.seriously;
@@ -1872,12 +1881,6 @@
 			//clear out list of targets and disconnect each
 			if (this.targets) {
 				delete this.targets;
-			}
-
-			//clear out frameBuffer
-			if (this.frameBuffer && this.frameBuffer.destroy) {
-				this.frameBuffer.destroy();
-				delete this.frameBuffer;
 			}
 
 			//remove from main nodes index
@@ -2143,10 +2146,84 @@
 				me.matte(polygons);
 			};
 
+			/**
+			 * Drive an effect input from a getter function, updated every animation
+			 * frame before rendering.
+			 *
+			 * @param {string} inputName  - the effect input to drive
+			 * @param {Function|object} fnOrObj - getter function () => value, or an
+			 *   object whose property to watch (second arg = property name string)
+			 * @param {string} [property] - property name when fnOrObj is an object
+			 *
+			 * Pass null/undefined as the second argument to remove the watcher for
+			 * that input without calling unwatch().
+			 */
+			this.watch = function (inputName, fnOrObj, property) {
+				var watchFn, boundCallback;
+
+				if (!me.effect.inputs || !me.effect.inputs[inputName]) {
+					throw new Error('Unknown input: ' + inputName);
+				}
+
+				if (!me.watchers) {
+					me.watchers = {};
+				}
+
+				// Remove any previous watcher for this input
+				if (me.watchers[inputName]) {
+					me.seriously.off('beforeFrame', me.watchers[inputName]);
+					delete me.watchers[inputName];
+				}
+
+				if (fnOrObj === null || fnOrObj === undefined) {
+					return this;
+				}
+
+				if (typeof fnOrObj === 'function') {
+					watchFn = fnOrObj;
+				} else if (fnOrObj && property !== undefined) {
+					watchFn = (function (obj, prop) {
+						return function () { return obj[prop]; };
+					}(fnOrObj, property));
+				} else {
+					throw new Error('watch() requires a getter function or (object, propertyName)');
+				}
+
+				boundCallback = (function (name, fn) {
+					return function () { me.setInput(name, fn()); };
+				}(inputName, watchFn));
+
+				me.watchers[inputName] = boundCallback;
+				me.seriously.on('beforeFrame', boundCallback);
+				return this;
+			};
+
+			this.unwatch = function (inputName) {
+				var key;
+				if (!me.watchers) {
+					return this;
+				}
+				if (inputName !== undefined) {
+					if (me.watchers[inputName]) {
+						me.seriously.off('beforeFrame', me.watchers[inputName]);
+						delete me.watchers[inputName];
+					}
+				} else {
+					for (key in me.watchers) {
+						if (me.watchers.hasOwnProperty(key)) {
+							me.seriously.off('beforeFrame', me.watchers[key]);
+						}
+					}
+					me.watchers = {};
+				}
+				return this;
+			};
+
 			this.destroy = function () {
 				var i,
 					descriptor;
 
+				this.unwatch();
 				me.destroy();
 
 				for (i in this) {
@@ -2160,6 +2237,16 @@
 						}
 					}
 				}
+			};
+
+			this.purge = function () {
+				me.purge();
+				return this;
+			};
+
+			this.restore = function () {
+				me.restore();
+				return this;
 			};
 
 			this.isDestroyed = function () {
@@ -2270,8 +2357,10 @@
 		EffectNode.prototype.constructor = EffectNode;
 
 		EffectNode.prototype.initialize = function () {
+			var that = this;
 			if (!this.initialized) {
-				var that = this;
+
+				restoreBasics();
 
 				this.baseShader = baseShader;
 
@@ -2283,10 +2372,10 @@
 
 				if (typeof this.effect.initialize === 'function') {
 					this.effect.initialize.call(this, function () {
-						that.initFrameBuffer(true);
+						that.initFrameBuffer();
 					}, gl);
 				} else {
-					this.initFrameBuffer(true);
+					this.initFrameBuffer();
 				}
 
 				if (this.frameBuffer) {
@@ -2295,6 +2384,46 @@
 
 				this.initialized = true;
 			}
+		};
+
+		EffectNode.prototype.purge = function () {
+			var hook = this.hook;
+
+			Node.prototype.purge.call(this);
+
+			this.initialized = false;
+			this.baseShader = null;
+			this.model = null;
+
+			this.texture = null;
+
+			//shader
+			if (this.shader) {
+				if (commonShaders[hook]) {
+					commonShaders[hook].count--;
+					if (!commonShaders[hook].count) {
+						delete commonShaders[hook];
+					}
+				}
+				if (this.shader.destroy && this.shader !== baseShader && !commonShaders[hook]) {
+					this.shader.destroy();
+					if (this.effect.commonShader) {
+						delete commonShaders[this.hook];
+					}
+				}
+			}
+
+			this.shaderDirty = true;
+			this.shader = null;
+
+			if (this.effect && this.effect.lostContext) {
+				this.effect.lostContext.call(this);
+			}
+		};
+
+		EffectNode.prototype.restore = function () {
+			this.initialize();
+			this.buildShader();
 		};
 
 		EffectNode.prototype.resize = function () {
@@ -2392,10 +2521,17 @@
 				me = this;
 
 			function addShaderName(shaderSrc) {
+				var versionMatch;
 				if (shaderNameRegex.test(shaderSrc)) {
 					return shaderSrc;
 				}
-
+				// #version must be the first directive — insert the define after it
+				versionMatch = shaderSrc.match(/^(\s*#version\s+[^\n]*\n?)/);
+				if (versionMatch) {
+					return versionMatch[1] +
+						'#define SHADER_NAME seriously.' + me.hook + '\n' +
+						shaderSrc.slice(versionMatch[1].length);
+				}
 				return '#define SHADER_NAME seriously.' + me.hook + '\n' +
 					shaderSrc;
 			}
@@ -3017,24 +3153,6 @@
 		EffectNode.prototype.destroy = function () {
 			var i, key, item, hook = this.hook;
 
-			//let effect destroy itself
-			if (this.effect.destroy && typeof this.effect.destroy === 'function') {
-				this.effect.destroy.call(this);
-			}
-			delete this.effect;
-
-			//shader
-			if (commonShaders[hook]) {
-				commonShaders[hook].count--;
-				if (!commonShaders[hook].count) {
-					delete commonShaders[hook];
-				}
-			}
-			if (this.shader && this.shader.destroy && this.shader !== baseShader && !commonShaders[hook]) {
-				this.shader.destroy();
-			}
-			delete this.shader;
-
 			//stop watching any input elements
 			for (key in this.inputElements) {
 				if (this.inputElements.hasOwnProperty(key)) {
@@ -3063,11 +3181,13 @@
 				}
 			}
 
-			for (key in this) {
-				if (this.hasOwnProperty(key) && key !== 'id') {
-					delete this[key];
-				}
+			Node.prototype.destroy.call(this);
+
+			//let effect destroy itself
+			if (this.effect.destroy && typeof this.effect.destroy === 'function') {
+				this.effect.destroy.call(this);
 			}
+			delete this.effect;
 
 			//remove any aliases
 			for (key in aliases) {
@@ -3089,8 +3209,6 @@
 			if (i >= 0) {
 				allEffectsByHook[hook].splice(i, 1);
 			}
-
-			Node.prototype.destroy.call(this);
 		};
 
 		Source = function (sourceNode) {
@@ -3133,6 +3251,7 @@
 			};
 
 			this.update = function () {
+				me.update();
 				me.setDirty();
 			};
 
@@ -3146,6 +3265,16 @@
 
 			this.off = function (eventName, callback) {
 				me.off(eventName, callback);
+			};
+
+			this.purge = function () {
+				me.purge();
+				return this;
+			};
+
+			this.restore = function () {
+				me.restore();
+				return this;
 			};
 
 			this.destroy = function () {
@@ -3174,6 +3303,12 @@
 			this.isReady = function () {
 				return me.ready;
 			};
+
+			if (typeof me._push === 'function') {
+				this.push = function (frame) {
+					me._push(frame);
+				};
+			}
 		};
 
 		/*
@@ -3246,6 +3381,11 @@
 					matchedType = true;
 					this.hook = 'canvas';
 					this.compare = compareSource;
+					this.update = function () {
+						this.width = source.width;
+						this.height = source.height;
+						this.resize();
+					};
 				} else if (source.tagName === 'IMG') {
 					this.width = source.naturalWidth || 1;
 					this.height = source.naturalHeight || 1;
@@ -3379,6 +3519,17 @@
 			this.setDirty();
 		};
 
+		SourceNode.prototype.restore = SourceNode.prototype.initialize;
+
+		SourceNode.prototype.purge = function () {
+			if (this.texture && this.gl) {
+				this.gl.deleteTexture(this.texture);
+			}
+			this.texture = null;
+			this.initialized = false;
+			this.allowRefresh = false;
+		};
+
 		SourceNode.prototype.initFrameBuffer = function (useFloat) {
 			if (gl) {
 				this.frameBuffer = new FrameBuffer(gl, this.width, this.height, {
@@ -3405,6 +3556,8 @@
 				this.targets.splice(i, 1);
 			}
 		};
+
+		SourceNode.prototype.update = nop;
 
 		SourceNode.prototype.resize = function () {
 			var i,
@@ -3515,7 +3668,7 @@
 				this.plugin.destroy.call(this);
 			}
 
-			if (gl && this.texture) {
+			if (gl && this.texture && gl.isTexture(this.texture)) {
 				gl.deleteTexture(this.texture);
 			}
 
@@ -3973,6 +4126,7 @@
 		};
 
 		TargetNode.prototype.render = function () {
+			restoreBasics();
 			if (gl && this.plugin && this.plugin.render) {
 				this.plugin.render.call(this, draw, baseShader, rectangleModel);
 			}
@@ -3987,6 +4141,8 @@
 				if (!this.source) {
 					return;
 				}
+
+				restoreBasics();
 
 				this.source.render();
 
@@ -4072,6 +4228,24 @@
 			}
 		};
 
+		TargetNode.prototype.restore = function () {
+			if (this !== primaryTarget && this.hasOwnProperty('pixels')) {
+				this.frameBuffer = {
+					frameBuffer: frameBuffer || null
+				};
+				this.shader = new ShaderProgram(this.gl, baseVertexShader, baseFragmentShader);
+				this.model = buildRectangleModel.call(this, this.gl);
+				this.pixels = null;
+
+				this.texture = this.gl.createTexture();
+				this.gl.bindTexture(gl.TEXTURE_2D, this.texture);
+				this.gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+				this.gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+				this.gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+				this.gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+			}
+		};
+
 		TargetNode.prototype.destroy = function () {
 			var i,
 				targetList;
@@ -4110,7 +4284,9 @@
 
 			//clear out context so we can start over
 			if (this === primaryTarget) {
-				glCanvas.removeEventListener('webglcontextrestored', restoreContext, false);
+				if (glCanvas) {
+					glCanvas.removeEventListener('webglcontextrestored', restoreContext, false);
+				}
 				destroyContext();
 				primaryTarget = null;
 			}
@@ -4356,6 +4532,16 @@
 				me.off(eventName, callback);
 			};
 
+			this.purge = function () {
+				me.purge();
+				return this;
+			};
+
+			this.restore = function () {
+				me.restore();
+				return this;
+			};
+
 			this.destroy = function () {
 				var i,
 					descriptor;
@@ -4515,6 +4701,18 @@
 
 			this.setTransformDirty();
 		};
+
+		TransformNode.prototype.purge = function () {
+			Node.prototype.purge.call(this);
+			if (this.texture && this.gl) {
+				this.gl.deleteTexture(this.texture);
+			}
+			this.texture = null;
+			this.renderDirty = true;
+		};
+
+		//todo: actually do work here if the node needs its own framebuffer and texture
+		TransformNode.prototype.restore = nop;
 
 		TransformNode.prototype.setSource = function (source) {
 			var newSource;
@@ -4814,6 +5012,10 @@
 			options = options || {};
 		}
 
+		if (options.precision === 'float16' || options.precision === 'float32') {
+			precision = options.precision;
+		}
+
 		if (options.canvas) {
 		}
 
@@ -4962,12 +5164,68 @@
 			rafId = 0;
 		};
 
+		/**
+		 * Subscribe to instance-level events.
+		 *
+		 * Supported events:
+		 *   'beforeFrame' — fired each animation frame before sources are checked
+		 *                   and targets are rendered. Callback receives the rAF
+		 *                   timestamp (DOMHighResTimeStamp) as its first argument.
+		 *   'afterFrame'  — fired each animation frame after all targets have been
+		 *                   rendered. Registering either frame event implicitly
+		 *                   starts the render loop.
+		 */
+		this.on = function (eventName, callback) {
+			if (typeof callback !== 'function') {
+				return this;
+			}
+			if (eventName === 'beforeFrame') {
+				if (preCallbacks.indexOf(callback) < 0) {
+					preCallbacks.push(callback);
+				}
+				if (!rafId) {
+					renderDaemon();
+				}
+			} else if (eventName === 'afterFrame') {
+				if (postCallbacks.indexOf(callback) < 0) {
+					postCallbacks.push(callback);
+				}
+				if (!rafId) {
+					renderDaemon();
+				}
+			}
+			return this;
+		};
+
+		this.off = function (eventName, callback) {
+			var i;
+			if (typeof callback !== 'function') {
+				return this;
+			}
+			if (eventName === 'beforeFrame') {
+				i = preCallbacks.indexOf(callback);
+				if (i >= 0) {
+					preCallbacks.splice(i, 1);
+				}
+			} else if (eventName === 'afterFrame') {
+				i = postCallbacks.indexOf(callback);
+				if (i >= 0) {
+					postCallbacks.splice(i, 1);
+				}
+			}
+			return this;
+		};
+
 		this.render = function () {
 			var i;
 			for (i = 0; i < targets.length; i++) {
 				targets[i].render(options);
 			}
 		};
+
+		this.restore = restoreAll;
+
+		this.purge = purgeAll;
 
 		this.destroy = function () {
 			var i,
@@ -5100,12 +5358,14 @@
 			canvas = document.createElement('canvas');
 			if (!canvas || !canvas.getContext) {
 				incompatibility = 'canvas';
-			} else if (!window.WebGLRenderingContext) {
+			} else if (!window.WebGLRenderingContext && !window.WebGL2RenderingContext) {
 				incompatibility = 'webgl';
 			} else {
 				gl = getTestContext();
 				if (!gl) {
 					incompatibility = 'context';
+				} else {
+					incompatibility = false;
 				}
 			}
 		}
@@ -5131,6 +5391,45 @@
 		}
 
 		return false;
+	};
+
+	Seriously.capabilities = function () {
+		var testGL = getTestContext(),
+			isGL2, ext,
+			caps = {
+				webgl2: false,
+				floatTextures: false,
+				halfFloatTextures: false,
+				floatRenderTargets: false,
+				halfFloatRenderTargets: false,
+				multipleRenderTargets: false
+			};
+
+		if (!testGL) {
+			return caps;
+		}
+
+		isGL2 = typeof WebGL2RenderingContext !== 'undefined' && testGL instanceof WebGL2RenderingContext;
+		caps.webgl2 = isGL2;
+
+		if (isGL2) {
+			caps.floatTextures = true;
+			caps.halfFloatTextures = true;
+			ext = testGL.getExtension('EXT_color_buffer_float');
+			caps.floatRenderTargets = !!ext;
+			caps.halfFloatRenderTargets = !!ext;
+			caps.multipleRenderTargets = true;
+		} else {
+			var floatExt = testGL.getExtension('OES_texture_float');
+			var halfExt = testGL.getExtension('OES_texture_half_float');
+			caps.floatTextures = !!floatExt;
+			caps.halfFloatTextures = !!halfExt;
+			caps.floatRenderTargets = !!(floatExt && testGL.getExtension('WEBGL_color_buffer_float'));
+			caps.halfFloatRenderTargets = !!(halfExt && testGL.getExtension('EXT_color_buffer_half_float'));
+			caps.multipleRenderTargets = !!testGL.getExtension('WEBGL_draw_buffers');
+		}
+
+		return caps;
 	};
 
 	Seriously.plugin = function (hook, definition, meta) {
@@ -5730,8 +6029,18 @@
 			destroyed = false,
 			deferTexture = false,
 
+			rvfcId = null,
+			framePending = false,
+			useRVFC = false,
+
 			isSeeking = false,
 			lastRenderTime = 0;
+
+		function onVideoFrame() {
+			framePending = true;
+			rvfcId = null;
+			me.setDirty();
+		}
 
 		function initializeVideo() {
 			video.removeEventListener('loadedmetadata', initializeVideo, true);
@@ -5778,6 +6087,11 @@
 			video.addEventListener('seeking', seeking, false);
 			video.addEventListener('seeked', seeked, false);
 
+			useRVFC = typeof video.requestVideoFrameCallback === 'function';
+			if (useRVFC) {
+				rvfcId = video.requestVideoFrameCallback(onVideoFrame);
+			}
+
 			return {
 				deferTexture: deferTexture,
 				source: video,
@@ -5786,6 +6100,10 @@
 						error;
 
 					lastRenderTime = video.currentTime;
+					framePending = false;
+					if (useRVFC && !destroyed) {
+						rvfcId = video.requestVideoFrameCallback(onVideoFrame);
+					}
 
 					if (!video.videoHeight || !video.videoWidth) {
 						return false;
@@ -5831,6 +6149,9 @@
 					return false;
 				},
 				checkDirty: function () {
+					if (useRVFC) {
+						return !isSeeking && framePending;
+					}
 					return !isSeeking && video.currentTime !== lastRenderTime;
 				},
 				compare: function (source) {
@@ -5838,6 +6159,10 @@
 				},
 				destroy: function () {
 					destroyed = true;
+					if (useRVFC && rvfcId !== null) {
+						video.cancelVideoFrameCallback(rvfcId);
+						rvfcId = null;
+					}
 					video.removeEventListener('seeking', seeking, false);
 					video.removeEventListener('seeked', seeked, false);
 					video.removeEventListener('loadedmetadata', initializeVideo, true);
@@ -6772,5 +7097,5 @@
 		'}\n' +
 		'#endif\n';
 
-	return Seriously;
-}));
+
+export default Seriously;

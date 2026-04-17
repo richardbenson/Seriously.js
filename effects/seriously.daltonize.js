@@ -1,21 +1,5 @@
-/* global define, require */
-(function (root, factory) {
-	'use strict';
+import Seriously from '../seriously.js';
 
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		define(['seriously'], factory);
-	} else if (typeof exports === 'object') {
-		// Node/CommonJS
-		factory(require('seriously'));
-	} else {
-		var Seriously = root.Seriously;
-		if (!Seriously) {
-			Seriously = { plugin: function (name, opt) { this[name] = opt; } };
-		}
-		factory(Seriously);
-	}
-}(window, function (Seriously) {
 	'use strict';
 
 //todo: add Simulate mode http://mudcu.be/labs/Color/Vision/Javascript/Color.Vision.Simulate.js
@@ -168,4 +152,3 @@
 		title: 'Daltonize',
 		description: 'Add contrast to colours to assist CVD (colour-blind) users.'
 	});
-}));

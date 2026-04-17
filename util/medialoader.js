@@ -1,14 +1,3 @@
-/* global define */
-(function (root, factory) {
-	'use strict';
-
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		define([], factory);
-	} else {
-		root.MediaLoader = factory();
-	}
-}(this, function () {
 	'use strict';
 
 	var typeRegex = /^[a-z\-]+/i,
@@ -132,5 +121,4 @@
 		};
 	}
 
-	return MediaLoader;
-}));
+export default MediaLoader;

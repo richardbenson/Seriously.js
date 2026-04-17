@@ -1,20 +1,5 @@
-/* global define, require */
-(function (root, factory) {
-	'use strict';
+import Seriously from '../seriously.js';
 
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		define(['seriously'], factory);
-	} else if (typeof exports === 'object') {
-		// Node/CommonJS
-		factory(require('seriously'));
-	} else {
-		if (!root.Seriously) {
-			root.Seriously = { plugin: function (name, opt) { this[name] = opt; } };
-		}
-		factory(root.Seriously);
-	}
-}(window, function (Seriously) {
 	'use strict';
 
 	var identity = new Float32Array([
@@ -155,8 +140,8 @@
 				topOpts.blendEquation = gl.FUNC_ADD;
 				topOpts.srcRGB = gl.SRC_ALPHA;
 				topOpts.dstRGB = gl.ONE_MINUS_SRC_ALPHA;
-				topOpts.srcAlpha = gl.SRC_ALPHA;
-				topOpts.dstAlpha = gl.DST_ALPHA;
+				topOpts.srcAlpha = gl.ONE;
+				topOpts.dstAlpha = gl.ONE_MINUS_SRC_ALPHA;
 			},
 			commonShader: true,
 			shader: function (inputs, shaderSource) {
@@ -252,4 +237,3 @@
 		description: 'Multiple layers',
 		title: 'Layers'
 	});
-}));

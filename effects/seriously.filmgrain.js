@@ -1,31 +1,5 @@
-/* global define, require */
-/*
-Film Grain
+import Seriously from '../seriously.js';
 
-Shader:
-* Copyright Martins Upitis (martinsh) devlog-martinsh.blogspot.com
-* Creative Commons Attribution 3.0 Unported License
-http://devlog-martinsh.blogspot.com/2013/05/image-imperfections-and-film-grain-post.html
-
-Modified to preserve alpha
-
-*/
-(function (root, factory) {
-	'use strict';
-
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		define(['seriously'], factory);
-	} else if (typeof exports === 'object') {
-		// Node/CommonJS
-		factory(require('seriously'));
-	} else {
-		if (!root.Seriously) {
-			root.Seriously = { plugin: function (name, opt) { this[name] = opt; } };
-		}
-		factory(root.Seriously);
-	}
-}(window, function (Seriously) {
 	'use strict';
 
 	Seriously.plugin('filmgrain', {
@@ -154,4 +128,3 @@ Modified to preserve alpha
 		title: 'Film Grain',
 		description: 'Don\'t over-do it.'
 	});
-}));

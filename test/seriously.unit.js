@@ -498,7 +498,7 @@
 		//Check inputs
 		inputs = effect.inputs();
 		ok(inputs.number && inputs.vector && inputs.e, 'All inputs are present');
-		equal(Object.keys(inputs).length, 3, 'No extra properties');
+		equal(Object.keys(inputs).length, 3, 'No extra properties: ' + Object.keys(inputs).join(','));
 
 		equal(inputs.number.type, 'number', 'Number type reported');
 		equal(inputs.number.min, -4, 'Number minimum reported');
@@ -2258,23 +2258,26 @@
 			ext = canvas;
 		}
 
-		//every test should run once,
-		//except the render loop should run twice
+		/*
+		every test should run once,
+		except the render loop should run twice
+		*/
 		expect(11);
 
 		Seriously.logger.log = function (s) {
 			console.log(s);
-			equal(s, 'WebGL context restored', 'context lost warning');
+			equal(s, 'WebGL context restored', 'log: WebGL context restored');
 		};
 
 		Seriously.logger.warn = function (s) {
 			console.log(s);
-			equal(s, 'WebGL context lost', 'context lost warning');
+			equal(s, 'WebGL context lost', 'warn: WebGL context lost');
 		};
 
 		Seriously.plugin('test', {
 			title: 'Test Effect',
 			lostContext: function () {
+				//runs when context is lost or when node is purged
 				ok(true, 'context lost callback fired');
 			},
 			inputs: {
@@ -3130,6 +3133,70 @@
 
 			seriously.destroy();
 			Seriously.removePlugin('chroma');
+
+			start();
+		});
+	});
+
+	asyncTest('Channels', 5, function () {
+		require([
+			'seriously',
+			'effects/seriously.channels',
+			'sources/seriously.array'
+		], function (Seriously) {
+			var seriously,
+				effect,
+				target,
+				canvas,
+				pixels,
+				error,
+				incompatible,
+				array = [
+					255, 255, 255, 255,
+					255, 0, 0, 255,
+					0, 255, 0, 128,
+					0, 0, 255, 0
+				],
+				arraySource,
+				img,
+				imgSource,
+				expected;
+
+			incompatible = Seriously.incompatible();
+
+			seriously = new Seriously();
+			arraySource = seriously.source(array, {
+				width: 2,
+				height: 2
+			});
+
+			canvas = document.createElement('canvas');
+			canvas.width = canvas.height = 1;
+			target = seriously.target(canvas);
+
+			img = document.createElement('img');
+			img.src = 'media/tiny.png';
+			imgSource = seriously.source(img);
+
+			effect = seriously.effect('channels');
+			ok(effect, 'Channels effect successfully created');
+
+			effect.alphaSource = arraySource;
+			ok(true, 'Set alphaSource without having a main "source" input set (issue #109)');
+
+			effect.source = imgSource;
+			equal(effect.redSource, imgSource, 'Unset channel sources fall back to main "source" input');
+
+			effect.source = arraySource;
+			equal(effect.source, arraySource, 'Set main "source" a second time (issue #109)');
+			equal(effect.redSource, imgSource, 'Unset channel sources remain set to original main "source" even after it changes.');
+
+			target.source = effect;
+
+			//todo: render and readPixels to test accurate render results
+
+			seriously.destroy();
+			Seriously.removePlugin('channels');
 
 			start();
 		});

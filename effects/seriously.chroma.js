@@ -1,20 +1,5 @@
-/* global define, require */
-(function (root, factory) {
-	'use strict';
+import Seriously from '../seriously.js';
 
-	if (typeof define === 'function' && define.amd) {
-		// AMD. Register as an anonymous module.
-		define(['seriously'], factory);
-	} else if (typeof exports === 'object') {
-		// Node/CommonJS
-		factory(require('seriously'));
-	} else {
-		if (!root.Seriously) {
-			root.Seriously = { plugin: function (name, opt) { this[name] = opt; } };
-		}
-		factory(root.Seriously);
-	}
-}(window, function (Seriously) {
 	'use strict';
 
 	/*
@@ -101,7 +86,7 @@
 				*/
 				'	float alpha = max(0.0, 1.0 - pixelSat / screenSat);',
 				'	alpha = smoothstep(clipBlack, clipWhite, alpha);',
-				'	vec4 semiTransparentPixel = vec4((sourcePixel.rgb - (1.0 - alpha) * screen.rgb * screenWeight) / max(0.00001, alpha), alpha);',
+				'	vec4 semiTransparentPixel = vec4((sourcePixel.rgb - (1.0 - alpha) * screen.rgb * screenWeight) / max(0.0001, alpha), alpha);',
 
 				'	vec4 pixel = mix(semiTransparentPixel, sourcePixel, solid);',
 
@@ -175,4 +160,3 @@
 		title: 'Chroma Key',
 		description: ''
 	});
-}));

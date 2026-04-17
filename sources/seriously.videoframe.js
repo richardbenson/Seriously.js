@@ -19,8 +19,7 @@ import Seriously from '../seriously.js';
 	Seriously.source('videoframe', function (source, options, force) {
 		var me = this,
 			destroyed = false,
-			pendingFrame = null,
-			currentFrame = null;
+			pendingFrame = null;
 
 		if (force) {
 			me._push = function (frame) {
@@ -43,22 +42,21 @@ import Seriously from '../seriously.js';
 			return {
 				deferTexture: false,
 				render: function (gl) {
-					if (!pendingFrame) {
+					var frame = pendingFrame;
+					if (!frame) {
 						return false;
 					}
-					if (currentFrame) {
-						currentFrame.close();
-					}
-					currentFrame = pendingFrame;
 					pendingFrame = null;
 
 					gl.bindTexture(gl.TEXTURE_2D, me.texture);
 					gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, me.flip);
 					gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
 					try {
-						gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, currentFrame);
+						gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, frame);
+						frame.close();
 						return true;
 					} catch (e) {
+						frame.close();
 						Seriously.logger.error('Error uploading VideoFrame to texture', e);
 					}
 					return false;
@@ -75,10 +73,6 @@ import Seriously from '../seriously.js';
 					if (pendingFrame) {
 						pendingFrame.close();
 						pendingFrame = null;
-					}
-					if (currentFrame) {
-						currentFrame.close();
-						currentFrame = null;
 					}
 				}
 			};

@@ -831,14 +831,7 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 		}
 
 		try {
-			if (isGL2 && actualPrecision !== 'uint8') {
-				gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, width, height, 0, gl.RGBA, type, null);
-			} else if (actualPrecision !== 'uint8') {
-				// WebGL 1 float path — internalFormat stays gl.RGBA
-				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, type, null);
-			} else {
-				gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-			}
+			gl.texImage2D(gl.TEXTURE_2D, 0, internalFormat, width, height, 0, gl.RGBA, type, null);
 		} catch (e) {
 			// Null rejected — fall back to uint8 with explicit data
 			this.type = gl.UNSIGNED_BYTE;
@@ -907,13 +900,7 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 		gl.bindFramebuffer(gl.FRAMEBUFFER, this.frameBuffer);
 		gl.bindRenderbuffer(gl.RENDERBUFFER, this.renderBuffer);
 
-		if (this.isGL2 && this.precision !== 'uint8') {
-			gl.texImage2D(gl.TEXTURE_2D, 0, this.internalFormat, width, height, 0, gl.RGBA, this.type, null);
-		} else if (this.precision !== 'uint8') {
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, this.type, null);
-		} else {
-			gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
-		}
+		gl.texImage2D(gl.TEXTURE_2D, 0, this.internalFormat, width, height, 0, gl.RGBA, this.type, null);
 		gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, width, height);
 		gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.texture, 0);
 
@@ -5115,7 +5102,6 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 		 *                   starts the render loop.
 		 */
 		this.on = function (eventName, callback) {
-			var i;
 			if (typeof callback !== 'function') {
 				return this;
 			}
@@ -5360,12 +5346,12 @@ var window = typeof globalThis !== 'undefined' ? globalThis : // eslint-disable-
 			caps.halfFloatRenderTargets = !!ext;
 			caps.multipleRenderTargets = true;
 		} else {
-			caps.floatTextures = !!testGL.getExtension('OES_texture_float');
-			caps.halfFloatTextures = !!testGL.getExtension('OES_texture_half_float');
-			caps.floatRenderTargets = !!(testGL.getExtension('OES_texture_float') &&
-				testGL.getExtension('WEBGL_color_buffer_float'));
-			caps.halfFloatRenderTargets = !!(testGL.getExtension('OES_texture_half_float') &&
-				testGL.getExtension('EXT_color_buffer_half_float'));
+			var floatExt = testGL.getExtension('OES_texture_float');
+			var halfExt = testGL.getExtension('OES_texture_half_float');
+			caps.floatTextures = !!floatExt;
+			caps.halfFloatTextures = !!halfExt;
+			caps.floatRenderTargets = !!(floatExt && testGL.getExtension('WEBGL_color_buffer_float'));
+			caps.halfFloatRenderTargets = !!(halfExt && testGL.getExtension('EXT_color_buffer_half_float'));
 			caps.multipleRenderTargets = !!testGL.getExtension('WEBGL_draw_buffers');
 		}
 

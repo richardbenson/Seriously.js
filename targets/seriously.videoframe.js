@@ -30,12 +30,14 @@ import Seriously from '../seriously.js';
 			0, 0, 1, 0,
 			0, 0, 0, 1
 		]),
-		mat4 = Seriously.util.mat4;
+		mat4 = Seriously.util.mat4,
+		hasVideoFrame = typeof VideoFrame !== 'undefined';
 
 	Seriously.target('videoframe', function (target, options, force) {
 		var me = this,
 			canvas,
 			context,
+			ctxOpts,
 			width,
 			height;
 
@@ -47,17 +49,15 @@ import Seriously from '../seriously.js';
 			canvas.width = width;
 			canvas.height = height;
 
-			context = canvas.getContext('webgl', {
+			ctxOpts = {
 				alpha: true,
 				premultipliedAlpha: true,
 				preserveDrawingBuffer: true,
 				stencil: true
-			}) || canvas.getContext('experimental-webgl', {
-				alpha: true,
-				premultipliedAlpha: true,
-				preserveDrawingBuffer: true,
-				stencil: true
-			});
+			};
+			context = canvas.getContext('webgl2', ctxOpts) ||
+				canvas.getContext('webgl', ctxOpts) ||
+				canvas.getContext('experimental-webgl', ctxOpts);
 
 			if (!context) {
 				throw new Error('Unable to create WebGL context for VideoFrame target');
@@ -81,6 +81,7 @@ import Seriously from '../seriously.js';
 
 					if (this.source.width === this.width && this.source.height === this.height) {
 						this.uniforms.transform = this.source.cumulativeMatrix || identity;
+						this.transformDirty = false;
 					} else if (this.transformDirty) {
 						matrix = this.transform || new Float32Array(16);
 						this.transform = matrix;
@@ -101,7 +102,7 @@ import Seriously from '../seriously.js';
 
 					draw(shader, model, this.uniforms, null, this);
 
-					if (typeof VideoFrame !== 'undefined') {
+					if (hasVideoFrame) {
 						try {
 							frame = new VideoFrame(canvas, {
 								timestamp: Math.round(performance.now() * 1000)
